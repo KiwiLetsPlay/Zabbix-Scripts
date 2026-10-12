@@ -49,6 +49,15 @@ Linux)
     echo "Unbekannte Linux-Distribution."; exit 1
   fi
   write_conf /etc/zabbix/zabbix_agent2.conf "$META"
+  if command -v apt-get >/dev/null; then
+    # Zusatz-Checks: offene Updates, Sicherheits-Updates, Neustart noetig
+    mkdir -p /etc/zabbix/zabbix_agent2.d
+    cat > /etc/zabbix/zabbix_agent2.d/homelab-updates.conf <<'CONF'
+UserParameter=updates.count,apt-get -s upgrade 2>/dev/null | grep -c '^Inst '
+UserParameter=updates.security,apt-get -s upgrade 2>/dev/null | grep '^Inst ' | grep -c -i security
+UserParameter=updates.reboot,[ -f /var/run/reboot-required ] && echo 1 || echo 0
+CONF
+  fi
   systemctl enable zabbix-agent2
   systemctl restart zabbix-agent2
   command -v docker >/dev/null && usermod -aG docker zabbix && systemctl restart zabbix-agent2 || true
