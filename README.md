@@ -1,4 +1,4 @@
-# homelab-scripts
+# Zabbix-Scripts
 
 Installer für den **Zabbix Agent 2** mit automatischer Registrierung im Zabbix-Server.
 
@@ -11,18 +11,32 @@ Die Zabbix-IP steht nicht im Skript, sie wird beim Aufruf mitgegeben. Es sind ke
 
 ## Linux / macOS
 
+Skripte per Git holen und ausführen:
+
 ```bash
-git clone https://github.com/DEIN-NAME/homelab-scripts.git
-cd homelab-scripts
+sudo apt install -y git          # nur falls git fehlt
+git clone https://github.com/KiwiLetsPlay/Zabbix-Scripts.git
+cd Zabbix-Scripts
 chmod +x install.sh
 sudo ./install.sh IP-DER-ZABBIX-VM [HOSTNAME]
 ```
 
 Beispiel: `sudo ./install.sh 192.168.2.230 paperless-vm`
 
+Später aktualisieren: im Ordner `Zabbix-Scripts` einfach `git pull`.
+
 Prüfen: `systemctl status zabbix-agent2` (muss `active (running)` zeigen)
 
-Ohne `git`: `sudo apt install git`. In minimalen LXC-Containern zusätzlich `apt install -y curl sudo`.
+In minimalen LXC-Containern zusätzlich: `apt install -y curl sudo git`.
+
+### Privates Repo
+
+Bei `git clone` wird nach Zugangsdaten gefragt:
+- **Username:** `KiwiLetsPlay`
+- **Password:** ein GitHub **Personal Access Token** (kein normales Passwort)
+
+Token erstellen: GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → nur dieses Repo, **Contents: Read-only**. Den Token nirgends ablegen oder weitergeben.
+Beim Eintippen wird nichts angezeigt, das ist normal. Ist das Repo öffentlich, entfällt das.
 
 ## Windows
 
