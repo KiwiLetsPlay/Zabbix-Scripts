@@ -31,18 +31,19 @@ Linux)
   if command -v apt-get >/dev/null; then
     DIST="$ID"; VER="$VERSION_ID"
     DEB="/tmp/zabbix-release.deb"
-    URL="https://repo.zabbix.com/zabbix/${ZBX_MAJOR}/release/${DIST}/pool/main/z/zabbix-release/zabbix-release_latest_${ZBX_MAJOR}+${DIST}${VER}_all.deb"
+    URL="https://repo.zabbix.com/zabbix/${ZBX_MAJOR}/${DIST}/pool/main/z/zabbix-release/zabbix-release_latest_${ZBX_MAJOR}+${DIST}${VER}_all.deb"
     if curl -fsSL "$URL" -o "$DEB"; then
       dpkg -i "$DEB"; apt-get update -y
     else
-      echo "Zabbix-Repo nicht erreichbar, nutze Distribution-Paket (aeltere Version, funktioniert trotzdem)."
+      echo "Zabbix-Repo-Paket nicht gefunden: $URL"
+      echo "Versuche Distribution-Paket ..."
       apt-get update -y
     fi
-    apt-get install -y zabbix-agent2
+    apt-get install -y zabbix-agent2 || { echo "FEHLER: zabbix-agent2 nicht installierbar (Repo-URL pruefen)."; exit 1; }
   elif command -v dnf >/dev/null || command -v yum >/dev/null; then
     PM=$(command -v dnf || command -v yum)
     MAJ="${VERSION_ID%%.*}"
-    $PM install -y "https://repo.zabbix.com/zabbix/${ZBX_MAJOR}/release/rhel/${MAJ}/noarch/zabbix-release-latest-${ZBX_MAJOR}.el${MAJ}.noarch.rpm" || true
+    $PM install -y "https://repo.zabbix.com/zabbix/${ZBX_MAJOR}/rhel/${MAJ}/x86_64/zabbix-release-latest-${ZBX_MAJOR}.el${MAJ}.noarch.rpm" || true
     $PM install -y zabbix-agent2
   else
     echo "Unbekannte Linux-Distribution."; exit 1
