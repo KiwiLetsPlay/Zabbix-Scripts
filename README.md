@@ -40,16 +40,26 @@ Beim Eintippen wird nichts angezeigt, das ist normal. Ist das Repo öffentlich, 
 
 ## Windows
 
-PowerShell **als Administrator**:
+PowerShell **als Administrator** öffnen (Startmenü → "PowerShell" → Rechtsklick → Als Administrator ausführen).
+
+Mit Git (Git for Windows muss installiert sein, ggf. `winget install --id Git.Git -e`):
 
 ```powershell
+git clone https://github.com/KiwiLetsPlay/Zabbix-Scripts.git
+cd Zabbix-Scripts
 Set-ExecutionPolicy -Scope Process Bypass
 .\install.ps1 -Server IP-DER-ZABBIX-VM
 ```
 
+Ohne Git: Im Repo auf GitHub **Code → Download ZIP**, entpacken, in den Ordner wechseln (`cd $HOME\Downloads\Zabbix-Scripts-main`) und die letzten beiden Befehle ausführen.
+
+Später aktualisieren: im Ordner `git pull`.
+
 Optional: `-HostName NAME`, `-Version 7.0.31`, `-Msi C:\pfad\agent.msi` (lokale MSI, falls kein Download möglich).
 
 Prüfen: `services.msc` → "Zabbix Agent 2" läuft.
+
+Privates Repo: Username `KiwiLetsPlay`, als Passwort ein Personal Access Token (siehe oben). Windows kann dafür ein Anmeldefenster öffnen.
 
 ## Einrichtung in Zabbix (einmalig)
 
@@ -75,6 +85,46 @@ Für Docker-Hosts zusätzlich das Template `Docker by Zabbix agent 2` verknüpfe
 
 - **Zabbix-VM selbst:** Der Container `zabbix-agent` aus der Compose-Datei übernimmt das (Port-Konflikt auf 10050).
 - **Home Assistant OS, IPFire:** keine normale Konsole, Überwachung per Ping/HTTP/SNMP.
+
+## Prüfen, ob der Agent läuft
+
+### Linux
+
+```bash
+systemctl status zabbix-agent2                 # Status (active (running) = gut)
+sudo systemctl restart zabbix-agent2           # Neustart
+sudo systemctl enable zabbix-agent2            # Start beim Booten
+sudo tail -n 30 /var/log/zabbix/zabbix_agent2.log   # Log ansehen
+sudo journalctl -u zabbix-agent2 -n 30 --no-pager   # Systemlog des Dienstes
+sudo ss -tlnp | grep 10050                     # lauscht der Agent auf Port 10050?
+grep -E '^(Server|ServerActive|Hostname|HostMetadata)=' /etc/zabbix/zabbix_agent2.conf   # Konfiguration
+nc -zv IP-DER-ZABBIX-VM 10051                  # Zabbix-Server erreichbar?
+```
+
+Fehlt `nc`: `sudo apt install -y netcat-openbsd`.
+
+### macOS
+
+```bash
+sudo launchctl list | grep zabbix              # Dienst geladen?
+sudo tail -n 30 /var/log/zabbix/zabbix_agent2.log
+nc -zv IP-DER-ZABBIX-VM 10051
+```
+
+### Windows (PowerShell)
+
+```powershell
+Get-Service "Zabbix Agent 2"                   # Status (Running = gut)
+Restart-Service "Zabbix Agent 2"               # Neustart
+Test-NetConnection IP-DER-ZABBIX-VM -Port 10051   # Zabbix-Server erreichbar? (TcpTestSucceeded : True)
+Get-Content "C:\Program Files\Zabbix Agent 2\zabbix_agent2.log" -Tail 30   # Log (Pfad kann abweichen)
+```
+
+### In Zabbix
+
+- **Data collection → Hosts:** grüne `ZBX`-Kachel bei "Availability" = Agent erreichbar.
+- **Monitoring → Latest data:** Host auswählen, es sollten CPU-, RAM- und Disk-Werte erscheinen.
+- **Monitoring → Problems:** zeigt aktive Warnungen.
 
 ## Fehlersuche
 
