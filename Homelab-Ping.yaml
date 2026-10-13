@@ -1,0 +1,52 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: 9bcbd0cbeb91488aa0ec70f06e176d16
+    name: Templates/Homelab
+  templates:
+  - uuid: d3b3fe229c6f49eab2554a64f8a96509
+    template: Homelab Ping
+    name: Homelab Ping
+    description: Ping fuer Router, Access Points und Switches. Ausfall = Disaster.
+    groups:
+    - name: Templates/Homelab
+    items:
+    - uuid: 8904edac79ff426fb5b96d161d57c60a
+      name: ICMP ping
+      type: SIMPLE
+      key: icmpping
+      delay: 10s
+      history: 7d
+      trends: '0'
+      tags:
+      - tag: component
+        value: network
+      triggers:
+      - uuid: 1591dd4174584a169a749a4abff4215f
+        expression: max(/Homelab Ping/icmpping,#3)=0
+        name: '{HOST.NAME}: Nicht per Ping erreichbar'
+        priority: DISASTER
+    - uuid: af32240237634ba49846e6d19d20fb14
+      name: ICMP response time
+      type: SIMPLE
+      key: icmppingsec
+      delay: 1m
+      value_type: FLOAT
+      units: s
+      history: 30d
+      trends: 365d
+      tags:
+      - tag: component
+        value: network
+    - uuid: b4754e592f0443cdb87fa4555b48ceff
+      name: ICMP loss
+      type: SIMPLE
+      key: icmppingloss
+      delay: 1m
+      value_type: FLOAT
+      units: '%'
+      history: 30d
+      trends: 365d
+      tags:
+      - tag: component
+        value: network

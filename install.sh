@@ -53,10 +53,35 @@ Linux)
     # Zusatz-Checks: offene Updates, Sicherheits-Updates, Neustart noetig
     mkdir -p /etc/zabbix/zabbix_agent2.d
     cat > /etc/zabbix/zabbix_agent2.d/homelab-updates.conf <<'CONF'
+UserParameter=homelab.alive,echo 1
+UserParameter=homelab.net.rx,IF=$(ip route show default | awk '/default/{print $5; exit}'); grep -E "^ *$IF:" /proc/net/dev | sed 's/^[^:]*://' | awk '{print $1}'
+UserParameter=homelab.net.tx,IF=$(ip route show default | awk '/default/{print $5; exit}'); grep -E "^ *$IF:" /proc/net/dev | sed 's/^[^:]*://' | awk '{print $9}'
 UserParameter=updates.count,apt-get -s upgrade 2>/dev/null | grep -c '^Inst '
 UserParameter=updates.security,apt-get -s upgrade 2>/dev/null | grep '^Inst ' | grep -c -i security
 UserParameter=updates.reboot,[ -f /var/run/reboot-required ] && echo 1 || echo 0
 CONF
+  fi
+  # Speedtest (Internet-Geschwindigkeit) - alle 6 Stunden, mit NO_SPEEDTEST=1 ueberspringen
+  if command -v apt-get >/dev/null && [ "${NO_SPEEDTEST:-0}" != "1" ]; then
+    apt-get install -y speedtest-cli jq cron || echo "Hinweis: Speedtest-Pakete nicht installierbar, ueberspringe."
+    if command -v speedtest-cli >/dev/null; then
+      mkdir -p /var/lib/homelab; chmod 755 /var/lib/homelab
+      cat > /usr/local/bin/homelab-speedtest.sh <<'SCRIPT'
+#!/usr/bin/env bash
+OUT=/var/lib/homelab/speedtest.json
+speedtest-cli --json > "$OUT.tmp" 2>/dev/null && mv "$OUT.tmp" "$OUT" && chmod 644 "$OUT"
+SCRIPT
+      chmod +x /usr/local/bin/homelab-speedtest.sh
+      MIN=$(( $(hostname | cksum | cut -d' ' -f1) % 60 ))
+      HOUR=$(( $(hostname | cksum | cut -d' ' -f1) % 6 ))
+      echo "$MIN $HOUR,$((HOUR+6)),$((HOUR+12)),$((HOUR+18)) * * * root /usr/local/bin/homelab-speedtest.sh" > /etc/cron.d/homelab-speedtest
+      cat > /etc/zabbix/zabbix_agent2.d/homelab-speedtest.conf <<'CONF'
+UserParameter=speedtest.download,jq -r '.download' /var/lib/homelab/speedtest.json
+UserParameter=speedtest.upload,jq -r '.upload' /var/lib/homelab/speedtest.json
+UserParameter=speedtest.ping,jq -r '.ping' /var/lib/homelab/speedtest.json
+CONF
+      nohup /usr/local/bin/homelab-speedtest.sh >/dev/null 2>&1 &
+    fi
   fi
   systemctl enable zabbix-agent2
   systemctl restart zabbix-agent2

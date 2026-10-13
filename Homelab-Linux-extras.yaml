@@ -1,58 +1,155 @@
 zabbix_export:
   version: '7.0'
   template_groups:
-    - uuid: 9bcbd0cbeb91488aa0ec70f06e176d16
-      name: Templates/Homelab
+  - uuid: 9bcbd0cbeb91488aa0ec70f06e176d16
+    name: Templates/Homelab
   templates:
-    - uuid: 79f777413b264768bf1f20c854740f4e
-      template: Homelab Linux extras
-      name: Homelab Linux extras
-      description: Offene Updates und Neustart-Hinweis (per UserParameter aus install.sh)
-      groups:
-        - name: Templates/Homelab
-      items:
-        - uuid: 8f633254193343f88f13b98053b3d78b
-          name: Pending updates
-          key: updates.count
-          delay: 1h
-          history: 30d
-          trends: 90d
-          description: Anzahl installierbarer Paket-Updates
-          tags:
-            - tag: component
-              value: updates
-          triggers:
-            - uuid: 97633f1233404fdf975d319c638a123e
-              expression: 'min(/Homelab Linux extras/updates.count,#2)>0'
-              name: '{HOST.NAME}: {ITEM.LASTVALUE} Updates verfuegbar'
-              priority: AVERAGE
-              description: Auf dem Server stehen Updates an.
-        - uuid: e73016ebb17b4fef9d1f12c81986e6eb
-          name: Pending security updates
-          key: updates.security
-          delay: 1h
-          history: 30d
-          trends: 90d
-          tags:
-            - tag: component
-              value: updates
-          triggers:
-            - uuid: af8cceb568ad4d29bd87e63c504615cd
-              expression: 'min(/Homelab Linux extras/updates.security,#2)>0'
-              name: '{HOST.NAME}: {ITEM.LASTVALUE} Sicherheits-Updates verfuegbar'
-              priority: HIGH
-        - uuid: a3e0071e4495451f84961f712e50659d
-          name: Reboot required
-          key: updates.reboot
-          delay: 1h
-          history: 30d
-          trends: 90d
-          description: 1 = Neustart nach Updates noetig
-          tags:
-            - tag: component
-              value: updates
-          triggers:
-            - uuid: 4a4898d6fa724b27b7e8b3fa4a8a4e0e
-              expression: 'min(/Homelab Linux extras/updates.reboot,#2)=1'
-              name: '{HOST.NAME}: Neustart noetig'
-              priority: WARNING
+  - uuid: 79f777413b264768bf1f20c854740f4e
+    template: Homelab Linux extras
+    name: Homelab Linux extras
+    description: Erreichbarkeit, Updates und Speedtest (UserParameter aus install.sh)
+    groups:
+    - name: Templates/Homelab
+    items:
+    - uuid: 8bcd2f6c5afa43879455ef9fa6967c40
+      name: Homelab alive
+      key: homelab.alive
+      delay: 10s
+      history: 7d
+      trends: '0'
+      description: Liefert immer 1. Bleibt der Wert aus, ist der Server nicht erreichbar.
+      tags:
+      - tag: component
+        value: availability
+      triggers:
+      - uuid: 2d6a04ca70474f83baa017d9e9193adb
+        expression: nodata(/Homelab Linux extras/homelab.alive,30s)=1
+        name: '{HOST.NAME}: Server nicht erreichbar'
+        priority: DISASTER
+        description: Seit 30 Sekunden keine Antwort vom Agent.
+    - uuid: 93e8c4a02b874911ab4f393f5cef0359
+      name: Download live
+      key: homelab.net.rx
+      delay: 1m
+      value_type: FLOAT
+      units: bps
+      history: 30d
+      trends: 365d
+      description: Aktuelle Empfangsrate der Netzwerkkarte mit Standardroute, jede
+        Minute
+      preprocessing:
+      - type: CHANGE_PER_SECOND
+        parameters:
+        - ''
+      - type: MULTIPLIER
+        parameters:
+        - '8'
+      tags:
+      - tag: component
+        value: network
+    - uuid: 84a5ad9215e543d8a35e00522c554913
+      name: Upload live
+      key: homelab.net.tx
+      delay: 1m
+      value_type: FLOAT
+      units: bps
+      history: 30d
+      trends: 365d
+      description: Aktuelle Senderate der Netzwerkkarte mit Standardroute, jede Minute
+      preprocessing:
+      - type: CHANGE_PER_SECOND
+        parameters:
+        - ''
+      - type: MULTIPLIER
+        parameters:
+        - '8'
+      tags:
+      - tag: component
+        value: network
+    - uuid: 8f633254193343f88f13b98053b3d78b
+      name: Pending updates
+      key: updates.count
+      delay: 1h
+      history: 30d
+      trends: 90d
+      description: Anzahl installierbarer Paket-Updates
+      tags:
+      - tag: component
+        value: updates
+      triggers:
+      - uuid: 97633f1233404fdf975d319c638a123e
+        expression: min(/Homelab Linux extras/updates.count,#2)>0
+        name: '{HOST.NAME}: {ITEM.LASTVALUE} Updates verfuegbar'
+        priority: AVERAGE
+        description: Auf dem Server stehen Updates an.
+    - uuid: e73016ebb17b4fef9d1f12c81986e6eb
+      name: Pending security updates
+      key: updates.security
+      delay: 1h
+      history: 30d
+      trends: 90d
+      tags:
+      - tag: component
+        value: updates
+      triggers:
+      - uuid: af8cceb568ad4d29bd87e63c504615cd
+        expression: min(/Homelab Linux extras/updates.security,#2)>0
+        name: '{HOST.NAME}: {ITEM.LASTVALUE} Sicherheits-Updates verfuegbar'
+        priority: HIGH
+    - uuid: a3e0071e4495451f84961f712e50659d
+      name: Reboot required
+      key: updates.reboot
+      delay: 1h
+      history: 30d
+      trends: 90d
+      description: 1 = Neustart nach Updates noetig
+      tags:
+      - tag: component
+        value: updates
+      triggers:
+      - uuid: 4a4898d6fa724b27b7e8b3fa4a8a4e0e
+        expression: min(/Homelab Linux extras/updates.reboot,#2)=1
+        name: '{HOST.NAME}: Neustart noetig'
+        priority: WARNING
+    - uuid: fe97dcfaaed7473a962352f76c4573f8
+      name: Speedtest (Maximum) download
+      key: speedtest.download
+      delay: 30m
+      value_type: FLOAT
+      units: bps
+      history: 90d
+      trends: 365d
+      tags:
+      - tag: component
+        value: speedtest
+      triggers:
+      - uuid: 60f3da4332c648859fc3fa008bfbac57
+        expression: max(/Homelab Linux extras/speedtest.download,#2)<{$SPEEDTEST.DOWN.MIN}
+        name: '{HOST.NAME}: Internet-Download niedrig ({ITEM.LASTVALUE})'
+        priority: WARNING
+    - uuid: 11ab9e19e31b403488157b331a797064
+      name: Speedtest (Maximum) upload
+      key: speedtest.upload
+      delay: 30m
+      value_type: FLOAT
+      units: bps
+      history: 90d
+      trends: 365d
+      tags:
+      - tag: component
+        value: speedtest
+    - uuid: 5fc620563a5045688f1d531e54184372
+      name: Speedtest (Maximum) ping
+      key: speedtest.ping
+      delay: 30m
+      value_type: FLOAT
+      units: ms
+      history: 90d
+      trends: 365d
+      tags:
+      - tag: component
+        value: speedtest
+    macros:
+    - macro: '{$SPEEDTEST.DOWN.MIN}'
+      value: '10000000'
+      description: Mindest-Download in bit/s (10000000 = 10 Mbit/s)
