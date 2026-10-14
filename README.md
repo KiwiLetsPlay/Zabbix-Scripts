@@ -12,8 +12,8 @@ Es stehen keine Passwörter, Tokens oder IP-Adressen in den Skripten. Die Zabbix
 | `install.sh` | Agent installieren: Linux (Ubuntu/Debian/RHEL) und macOS |
 | `install.ps1` | Agent installieren: Windows |
 | `uninstall.sh` / `uninstall.ps1` | Agent wieder entfernen |
-| `update.sh` | Offene Updates anzeigen und installieren (Ubuntu/Debian) |
-| `Homelab-Linux-extras.yaml` | Zabbix-Template: Erreichbarkeit, Updates, Download/Upload, Speedtest |
+| `update.sh` | Offene Updates auf dem Server selbst anzeigen und installieren (Ubuntu/Debian) |
+| `Homelab-Linux-extras.yaml` | Zabbix-Template: Erreichbarkeit, Updates (mit Liste), Download/Upload, Speedtest |
 | `Homelab-Ping.yaml` | Zabbix-Template für Router, Access Points, Switches (nur Ping) |
 | `diun/compose.yaml` | Meldet per Telegram, wenn es neue Docker-Images gibt |
 
@@ -45,7 +45,7 @@ Dann **Import**. Das machst du für beide Dateien:
 - `Homelab-Linux-extras.yaml`
 - `Homelab-Ping.yaml`
 
-Bei einem späteren Update derselben Dateien einfach genauso nochmal importieren. Die Einträge werden aktualisiert, es entstehen keine Doppelten.
+Bei einem späteren Update derselben Dateien einfach genauso nochmal importieren. Die Einträge werden aktualisiert, es entstehen keine Doppelten. Setze zusätzlich bei Items und Triggers den Haken **Delete missing**, damit alte, nicht mehr gebrauchte Einträge verschwinden.
 
 Falls du früher schon eine alte Datei `Homelab-Speedtest.yaml` importiert hast: Template **Homelab Speedtest** vorher löschen (Data collection → Templates → Haken → Delete), sonst gibt es doppelte Werte.
 
@@ -150,7 +150,12 @@ Token erstellen: GitHub → Settings → Developer settings → Personal access 
 
 ### Nicht per Skript
 
-- **Zabbix-VM selbst:** Der Container `zabbix-agent` aus der Compose-Datei übernimmt das (Port-Konflikt auf 10050).
+- **Zabbix-VM selbst:** Dort läuft schon ein Agent-Container auf Port 10050. Damit beide nicht kollidieren und der Zabbix-Container den Agent erreicht, bekommt der Agent aus `install.sh` einen anderen Port und erlaubt zusätzlich das Docker-Netz:
+  ```bash
+  cd ~/Zabbix-Scripts
+  SERVER_EXTRA="172.16.0.0/12" AGENT_PORT=10055 sudo -E bash install.sh 192.168.2.105 "Zabbix server"
+  ```
+  Danach in Zabbix beim Host `Zabbix server` unter **Interfaces → Agent** die IP `192.168.2.105`, Port `10055`, **Connect to: IP** eintragen und DNS leeren.
 - **Home Assistant OS:** Add-on "Zabbix Agent 2" aus dem Community-Repo verwenden.
 - **IPFire, Router, Switches, APs:** keine Agent-Installation, siehe Schritt 3.
 - **Proxmox:** Template `Proxmox VE by HTTP` mit API-Token (Rolle PVEAuditor).
@@ -232,7 +237,7 @@ Fehlt `nc`: `sudo apt install -y netcat-openbsd`.
 Einzelne Messwerte direkt testen:
 
 ```bash
-sudo zabbix_agent2 -t homelab.alive      # muss 1 zeigen
+sudo zabbix_agent2 -t 'vfs.file.exists[/proc/uptime]'   # muss 1 zeigen
 sudo zabbix_agent2 -t homelab.net.rx     # Zahl (empfangene Bytes)
 sudo zabbix_agent2 -t updates.count      # Anzahl offener Updates
 sudo zabbix_agent2 -t updates.security   # davon Sicherheits-Updates
@@ -263,6 +268,102 @@ Get-Content "C:\Program Files\Zabbix Agent 2\zabbix_agent2.log" -Tail 30
 ### Alarm testen
 
 Auf einem Test-Server `sudo systemctl stop zabbix-agent2`. Nach etwa 30–40 Sekunden muss die Disaster-Meldung in Telegram ankommen. Danach `sudo systemctl start zabbix-agent2`, die Meldung verschwindet wieder.
+
+### Simulationen: Updates vortäuschen
+
+So prüfst du die ganze Kette (Messwert, Trigger, Problem, Telegram), ohne dass wirklich Updates anstehen. Alles auf dem Server, der getestet wird (hier Pihole). Die Zeilen einzeln eingeben.
+
+**Vorbereitung (Sicherung der Einstellung):**
+```
+sudo cp /etc/zabbix/zabbix_agent2.d/homelab-updates.conf /root/homelab-updates.conf.bak
+```
+
+**Test A: normale Updates (nur Current problems, kein Telegram)**
+```
+sudo sed -i 's|^UserParameter=updates.count,.*|UserParameter=updates.count,echo 3|' /etc/zabbix/zabbix_agent2.d/homelab-updates.conf
+```
+```
+sudo systemctl restart zabbix-agent2
+```
+In Zabbix: **Monitoring → Latest data → Host wählen**, bei „Pending updates“ Haken setzen, **Execute now** klicken, 30 Sekunden warten, **noch einmal Execute now** (der Trigger braucht zwei Messungen hintereinander). Unter **Monitoring → Problems** steht jetzt „3 Updates verfügbar“ (Average). Auf dem Handy darf nichts ankommen.
+
+**Test B: Sicherheitsupdates (Current problems und Telegram)**
+```
+sudo sed -i 's|^UserParameter=updates.security,.*|UserParameter=updates.security,echo 1|' /etc/zabbix/zabbix_agent2.d/homelab-updates.conf
+```
+```
+sudo systemctl restart zabbix-agent2
+```
+Wieder bei „Pending security updates“ zweimal **Execute now**. Das Problem erscheint als High und die Telegram-Nachricht kommt an.
+
+**Zurücksetzen (wichtig, sonst meldet der Server dauerhaft falsche Zahlen):**
+```
+sudo cp /root/homelab-updates.conf.bak /etc/zabbix/zabbix_agent2.d/homelab-updates.conf
+```
+```
+sudo systemctl restart zabbix-agent2
+```
+Danach bei beiden Messwerten zweimal **Execute now**. Die Test-Probleme schließen sich von selbst.
+
+### Welche Updates sind es?
+
+Der Name des Problems zeigt die Pakete direkt an, zum Beispiel: `pihole: 2 Updates verfuegbar: libssl3*, curl`. Ein `*` hinter dem Namen bedeutet Sicherheits-Update. Es werden bis zu 8 Pakete genannt, danach steht „(+N weitere)“. Dieselbe Liste steht in Latest data beim Messwert „Pending updates list“. Der Text kommt auch in der Telegram-Nachricht bei Sicherheitsupdates. Dafür muss die neue `Homelab-Linux-extras.yaml` importiert (Update existing) und `install.sh` auf den Servern neu ausgeführt sein.
+
+---
+
+## Updates per Knopf in Zabbix installieren
+
+Du siehst pro Server, **welche** Updates anstehen (`Pending updates list`, ein `*` hinter dem Namen = Sicherheits-Update), und kannst sie mit einem Klick starten. Das läuft ohne Fernbefehle (`system.run` bleibt aus): Der Agent bekommt nur einen festen Befehl, und nur der Zabbix-Server darf ihn auslösen.
+
+### 1. Auf den Servern freischalten (nicht auf Proxmox `home`)
+
+```bash
+cd ~/Zabbix-Scripts && git pull
+sudo bash install.sh 192.168.2.105 --update-button
+```
+
+Dort, wo du einen eigenen Namen vergeben hattest, denselben Namen wieder angeben (`sudo bash install.sh 192.168.2.105 NAME --update-button`). Ohne `--update-button` bleibt der Knopf aus, und ein früher gesetzter Knopf wird wieder entfernt.
+
+Auf der Zabbix-VM (als root):
+
+```bash
+SERVER_EXTRA="172.16.0.0/12" AGENT_PORT=10055 bash install.sh 192.168.2.105 "Zabbix server" --update-button
+```
+
+### 2. Skripte in Zabbix anlegen (einmalig)
+
+Voraussetzung: `Homelab-Linux-extras.yaml` ist neu importiert. Prüfen, ob `zabbix_get` im Server-Container vorhanden ist:
+
+```bash
+docker exec zabbix-docker-zabbix-server-1 which zabbix_get
+```
+
+Dann **Alerts → Scripts → Create script**:
+
+| Feld | Wert |
+|---|---|
+| Name | `Updates installieren` |
+| Scope | Manual host action |
+| Type | Script |
+| Execute on | Zabbix server |
+| Commands | `zabbix_get -s {HOST.IP} -p {HOST.PORT} -k homelab.update.run` |
+| Host group | nur die Gruppe, in der die freigeschalteten Server liegen (nicht `home`) |
+| Enable user confirmation | an, Text: `Updates auf {HOST.NAME} jetzt installieren?` |
+
+Zwei weitere Skripte nach demselben Muster (ohne Bestätigung, für alle Linux-Server):
+
+| Name | Commands |
+|---|---|
+| `Offene Updates anzeigen` | `zabbix_get -s {HOST.IP} -p {HOST.PORT} -k updates.list` |
+| `Update-Status anzeigen` | `zabbix_get -s {HOST.IP} -p {HOST.PORT} -k homelab.update.status` |
+
+### 3. Benutzen
+
+Auf einen Hostnamen klicken (Dashboard, Problems oder Hostliste) → Menü **Scripts** → `Updates installieren`. Zabbix meldet "Update gestartet". Den Fortschritt siehst du unter **Monitoring → Latest data** beim Eintrag `Update status` (LAEUFT ... / Ende ... / NEUSTART NOETIG). Danach den Eintrag `Pending updates` mit **Execute now** neu abfragen, sonst verschwindet die Meldung erst nach bis zu einer Stunde. Ein nötiger Neustart passiert **nicht** automatisch.
+
+Im Dashboard zeigst du die Liste im Widget **Top hosts**: **Columns → Add**, Item `Pending updates list`, Display **As is**.
+
+Entfernen: Server ohne `--update-button` neu installieren, oder `sudo bash uninstall.sh`.
 
 ---
 
@@ -322,5 +423,7 @@ Danach noch von Hand:
 | Telegram-Test: "unresolved macros" | Beim Test in Zabbix die Felder (To, Subject, Message) mit echten Werten füllen, nicht mit `{ALERT.SENDTO}`. |
 | Telegram schickt auch normale Updates | Beim Benutzer Admin → Media → Telegram nur **High** und **Disaster** angehakt lassen. |
 | Telegram schickt gar nichts | Chat-ID richtig? Dem Bot einmal `/start` schicken. Alerts → Actions: Action "Report problems to Zabbix administrators" aktiv? Bot-Token im Media type gesetzt? |
+| Updates fehlen in Zabbix, obwohl `apt update` welche zeigt | Zabbix zählt mit den Paketlisten des Servers. Sind die veraltet, steht dort `0`. `install.sh` richtet deshalb alle 6 Stunden ein `apt-get update` ein (`/etc/cron.d/homelab-apt-update`). Einmal neu installieren oder von Hand `sudo apt update` ausführen, dann beim Messwert **Execute now**. |
 | Update-Meldung bleibt nach `apt upgrade` | Prüfintervall 1 Stunde, Item mit **Execute now** neu abfragen. Bleibt sie: `apt list --upgradable` ansehen (zurückgehaltene Pakete: `sudo apt full-upgrade`), oder `/var/run/reboot-required` existiert (Neustart nötig). |
+| Knopf `Updates installieren` meldet Fehler | Mit `--update-button` installiert? Prüfen: `ls /etc/sudoers.d/zabbix-homelab-update` und `sudo -l -U zabbix` (dort muss `homelab-update.sh start` stehen). Fehlt `zabbix_get` im Container, schick die Fehlermeldung. |
 | Diun schickt nichts | `docker compose logs diun` ansehen. Meist falscher Token/Chat-ID in `.env`. |

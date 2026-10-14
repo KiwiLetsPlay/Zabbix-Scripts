@@ -7,23 +7,23 @@ zabbix_export:
   - uuid: 79f777413b264768bf1f20c854740f4e
     template: Homelab Linux extras
     name: Homelab Linux extras
-    description: Erreichbarkeit, Updates und Speedtest (UserParameter aus install.sh)
+    description: Erreichbarkeit, Updates (mit Liste und Update-Knopf), Download/Upload live und Speedtest (UserParameter aus install.sh)
     groups:
     - name: Templates/Homelab
     items:
     - uuid: 8bcd2f6c5afa43879455ef9fa6967c40
       name: Homelab alive
-      key: homelab.alive
+      key: vfs.file.exists[/proc/uptime]
       delay: 10s
       history: 7d
       trends: '0'
-      description: Liefert immer 1. Bleibt der Wert aus, ist der Server nicht erreichbar.
+      description: Liefert immer 1 (laeuft auf jedem Agent, auch Container, Home Assistant und Proxmox). Bleibt der Wert aus, ist der Server nicht erreichbar.
       tags:
       - tag: component
         value: availability
       triggers:
       - uuid: 2d6a04ca70474f83baa017d9e9193adb
-        expression: nodata(/Homelab Linux extras/homelab.alive,30s)=1
+        expression: nodata(/Homelab Linux extras/vfs.file.exists[/proc/uptime],30s)=1
         name: '{HOST.NAME}: Server nicht erreichbar'
         priority: DISASTER
         description: Seit 30 Sekunden keine Antwort vom Agent.
@@ -35,8 +35,7 @@ zabbix_export:
       units: bps
       history: 30d
       trends: 365d
-      description: Aktuelle Empfangsrate der Netzwerkkarte mit Standardroute, jede
-        Minute
+      description: Aktuelle Empfangsrate der Netzwerkkarte mit Standardroute, jede Minute
       preprocessing:
       - type: CHANGE_PER_SECOND
         parameters:
@@ -79,7 +78,7 @@ zabbix_export:
       triggers:
       - uuid: 97633f1233404fdf975d319c638a123e
         expression: min(/Homelab Linux extras/updates.count,#2)>0
-        name: '{HOST.NAME}: {ITEM.LASTVALUE} Updates verfuegbar'
+        name: '{HOST.NAME}: {ITEM.LASTVALUE} Updates verfuegbar: {?last(/Homelab Linux extras/updates.list)}'
         priority: AVERAGE
         description: Auf dem Server stehen Updates an.
     - uuid: e73016ebb17b4fef9d1f12c81986e6eb
@@ -94,7 +93,7 @@ zabbix_export:
       triggers:
       - uuid: af8cceb568ad4d29bd87e63c504615cd
         expression: min(/Homelab Linux extras/updates.security,#2)>0
-        name: '{HOST.NAME}: {ITEM.LASTVALUE} Sicherheits-Updates verfuegbar'
+        name: '{HOST.NAME}: {ITEM.LASTVALUE} Sicherheits-Updates verfuegbar: {?last(/Homelab Linux extras/updates.list)}'
         priority: HIGH
     - uuid: a3e0071e4495451f84961f712e50659d
       name: Reboot required
@@ -149,6 +148,28 @@ zabbix_export:
       tags:
       - tag: component
         value: speedtest
+    - uuid: 3f9b0a67c6ac4492af6edb05ee4325f8
+      name: Pending updates list
+      key: updates.list
+      delay: 1h
+      value_type: TEXT
+      trends: '0'
+      history: 7d
+      description: Namen der offenen Updates. Ein * hinter dem Namen bedeutet Sicherheits-Update.
+      tags:
+      - tag: component
+        value: updates
+    - uuid: 9fc5bdaf928b4dc588a0d2d27331938a
+      name: Update status
+      key: homelab.update.status
+      delay: 1m
+      value_type: TEXT
+      trends: '0'
+      history: 7d
+      description: Status des ueber den Zabbix-Knopf gestarteten Updates (LAEUFT / Ende / Neustart noetig).
+      tags:
+      - tag: component
+        value: updates
     macros:
     - macro: '{$SPEEDTEST.DOWN.MIN}'
       value: '10000000'
