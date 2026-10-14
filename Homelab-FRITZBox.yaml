@@ -5,7 +5,7 @@ zabbix_export:
     name: Templates/Homelab
   templates:
   - uuid: b2cb2232ad5b4e1d8092975e3bed8da5
-    template: Homelab FRITZ!Box
+    template: Homelab FRITZBox
     name: Homelab FRITZ!Box
     description: 'FRITZ!Box per UPnP: DSL-Sync, Leitungsstatus, Durchsatz, Verbindung. In der FRITZ!Box muss "Statusinformationen ueber UPnP uebertragen" aktiv sein.'
     groups:
@@ -95,7 +95,7 @@ zabbix_export:
       description: Maximale Geschwindigkeit, die die Leitung laut Modem hergibt (Download)
       triggers:
       - uuid: e8ee0dfdf42a4437893a89086b43accc
-        expression: max(/Homelab FRITZ!Box/fritz.sync.down,#3)<{$FRITZ.SYNC.DOWN.MIN}
+        expression: max(/Homelab FRITZBox/fritz.sync.down,#3)<{$FRITZ.SYNC.DOWN.MIN}
         name: '{HOST.NAME}: DSL-Sync-Download unter Mindestwert'
         priority: WARNING
         description: Mindestwert im Makro {$FRITZ.SYNC.DOWN.MIN} einstellen
@@ -137,7 +137,7 @@ zabbix_export:
       trends: '0'
       triggers:
       - uuid: a4afe32ae375499e8d8239db61381ae3
-        expression: last(/Homelab FRITZ!Box/fritz.link.status)<>"Up"
+        expression: last(/Homelab FRITZBox/fritz.link.status)<>"Up"
         name: '{HOST.NAME}: DSL-Leitung nicht synchron'
         priority: HIGH
     - uuid: a44f14b04952457c80767b9636deb23e
@@ -201,7 +201,7 @@ zabbix_export:
       trends: '0'
       triggers:
       - uuid: e8b385e167fa4fb3a3b907f62bdedf59
-        expression: last(/Homelab FRITZ!Box/fritz.conn.status)<>"Connected"
+        expression: last(/Homelab FRITZBox/fritz.conn.status)<>"Connected"
         name: '{HOST.NAME}: Internetverbindung getrennt'
         priority: HIGH
     - uuid: aa6013cd40074a29b1d943359cc37b31
@@ -225,7 +225,7 @@ zabbix_export:
       description: Sekunden seit dem letzten Verbindungsaufbau
       triggers:
       - uuid: c5360ba8e0f74c9f82f1a84d58a48e28
-        expression: change(/Homelab FRITZ!Box/fritz.uptime)<0
+        expression: change(/Homelab FRITZBox/fritz.uptime)<0
         name: '{HOST.NAME}: Internetverbindung wurde neu aufgebaut'
         priority: AVERAGE
         description: Zeigt DSL-Neuverbindungen (Abbrueche) an
