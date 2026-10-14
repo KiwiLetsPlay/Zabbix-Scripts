@@ -1,0 +1,236 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: 9bcbd0cbeb91488aa0ec70f06e176d16
+    name: Templates/Homelab
+  templates:
+  - uuid: b2cb2232ad5b4e1d8092975e3bed8da5
+    template: Homelab FRITZ!Box
+    name: Homelab FRITZ!Box
+    description: 'FRITZ!Box per UPnP: DSL-Sync, Leitungsstatus, Durchsatz, Verbindung. In der FRITZ!Box muss "Statusinformationen ueber UPnP uebertragen" aktiv sein.'
+    groups:
+    - name: Templates/Homelab
+    items:
+    - uuid: 995516a703264a46a069da5b07fa2a27
+      name: FRITZ!Box Leitung (Rohdaten)
+      type: HTTP_AGENT
+      key: fritz.link
+      delay: 1m
+      history: 1h
+      trends: '0'
+      value_type: TEXT
+      description: UPnP-Antwort mit Sync-Geschwindigkeit und Leitungsstatus
+      url: http://{HOST.CONN}:49000/igdupnp/control/WANCommonIFC1
+      request_method: POST
+      post_type: RAW
+      posts: <?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:GetCommonLinkProperties xmlns:u="urn:schemas-upnp-org:service:WANCommonInterfaceConfig:1"/></s:Body></s:Envelope>
+      headers:
+      - name: SOAPAction
+        value: '"urn:schemas-upnp-org:service:WANCommonInterfaceConfig:1#GetCommonLinkProperties"'
+      - name: Content-Type
+        value: text/xml; charset="utf-8"
+      tags:
+      - tag: component
+        value: fritzbox
+    - uuid: 7570f1f7fa77481b837d741d5b166615
+      name: FRITZ!Box Durchsatz (Rohdaten)
+      type: HTTP_AGENT
+      key: fritz.addon
+      delay: 1m
+      history: 1h
+      trends: '0'
+      value_type: TEXT
+      description: UPnP-Antwort mit aktueller Datenrate
+      url: http://{HOST.CONN}:49000/igdupnp/control/WANCommonIFC1
+      request_method: POST
+      post_type: RAW
+      posts: <?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:GetAddonInfos xmlns:u="urn:schemas-upnp-org:service:WANCommonInterfaceConfig:1"/></s:Body></s:Envelope>
+      headers:
+      - name: SOAPAction
+        value: '"urn:schemas-upnp-org:service:WANCommonInterfaceConfig:1#GetAddonInfos"'
+      - name: Content-Type
+        value: text/xml; charset="utf-8"
+      tags:
+      - tag: component
+        value: fritzbox
+    - uuid: 99ac64ad853d4da7b2a57c7a3240c64c
+      name: FRITZ!Box Verbindung (Rohdaten)
+      type: HTTP_AGENT
+      key: fritz.conn
+      delay: 1m
+      history: 1h
+      trends: '0'
+      value_type: TEXT
+      description: UPnP-Antwort mit Verbindungsstatus und Online-Zeit
+      url: http://{HOST.CONN}:49000/igdupnp/control/WANIPConn1
+      request_method: POST
+      post_type: RAW
+      posts: <?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:GetStatusInfo xmlns:u="urn:schemas-upnp-org:service:WANIPConnection:1"/></s:Body></s:Envelope>
+      headers:
+      - name: SOAPAction
+        value: '"urn:schemas-upnp-org:service:WANIPConnection:1#GetStatusInfo"'
+      - name: Content-Type
+        value: text/xml; charset="utf-8"
+      tags:
+      - tag: component
+        value: fritzbox
+    - uuid: 26aa68632ab44d15be2e3ff776e9e782
+      name: DSL Sync Download (Maximum)
+      type: DEPENDENT
+      key: fritz.sync.down
+      delay: '0'
+      history: 30d
+      value_type: FLOAT
+      master_item:
+        key: fritz.link
+      preprocessing:
+      - type: XMLPATH
+        parameters:
+        - number(//NewLayer1DownstreamMaxBitRate)
+      tags:
+      - tag: component
+        value: fritzbox
+      trends: 365d
+      units: bps
+      description: Maximale Geschwindigkeit, die die Leitung laut Modem hergibt (Download)
+      triggers:
+      - uuid: e8ee0dfdf42a4437893a89086b43accc
+        expression: max(/Homelab FRITZ!Box/fritz.sync.down,#3)<{$FRITZ.SYNC.DOWN.MIN}
+        name: '{HOST.NAME}: DSL-Sync-Download unter Mindestwert'
+        priority: WARNING
+        description: Mindestwert im Makro {$FRITZ.SYNC.DOWN.MIN} einstellen
+    - uuid: 3e718224b5bb4dc28f9eafab08592264
+      name: DSL Sync Upload (Maximum)
+      type: DEPENDENT
+      key: fritz.sync.up
+      delay: '0'
+      history: 30d
+      value_type: FLOAT
+      master_item:
+        key: fritz.link
+      preprocessing:
+      - type: XMLPATH
+        parameters:
+        - number(//NewLayer1UpstreamMaxBitRate)
+      tags:
+      - tag: component
+        value: fritzbox
+      trends: 365d
+      units: bps
+      description: Maximale Geschwindigkeit der Leitung (Upload)
+    - uuid: 35e4ad68bb764d4aa3e44d920944a451
+      name: Leitungsstatus
+      type: DEPENDENT
+      key: fritz.link.status
+      delay: '0'
+      history: 30d
+      value_type: CHAR
+      master_item:
+        key: fritz.link
+      preprocessing:
+      - type: XMLPATH
+        parameters:
+        - string(//NewPhysicalLinkStatus)
+      tags:
+      - tag: component
+        value: fritzbox
+      trends: '0'
+      triggers:
+      - uuid: a4afe32ae375499e8d8239db61381ae3
+        expression: last(/Homelab FRITZ!Box/fritz.link.status)<>"Up"
+        name: '{HOST.NAME}: DSL-Leitung nicht synchron'
+        priority: HIGH
+    - uuid: a44f14b04952457c80767b9636deb23e
+      name: Internet Download live (FRITZ!Box)
+      type: DEPENDENT
+      key: fritz.rx
+      delay: '0'
+      history: 30d
+      value_type: FLOAT
+      master_item:
+        key: fritz.addon
+      preprocessing:
+      - type: XMLPATH
+        parameters:
+        - number(//NewByteReceiveRate)
+      - type: MULTIPLIER
+        parameters:
+        - '8'
+      tags:
+      - tag: component
+        value: fritzbox
+      trends: 365d
+      units: bps
+    - uuid: 1796515bd3e44c2ca2c1f10d203c9bae
+      name: Internet Upload live (FRITZ!Box)
+      type: DEPENDENT
+      key: fritz.tx
+      delay: '0'
+      history: 30d
+      value_type: FLOAT
+      master_item:
+        key: fritz.addon
+      preprocessing:
+      - type: XMLPATH
+        parameters:
+        - number(//NewByteSendRate)
+      - type: MULTIPLIER
+        parameters:
+        - '8'
+      tags:
+      - tag: component
+        value: fritzbox
+      trends: 365d
+      units: bps
+    - uuid: bd06ab3a3d964fa9bbfa6e6aea048db3
+      name: Internetverbindung Status
+      type: DEPENDENT
+      key: fritz.conn.status
+      delay: '0'
+      history: 30d
+      value_type: CHAR
+      master_item:
+        key: fritz.conn
+      preprocessing:
+      - type: XMLPATH
+        parameters:
+        - string(//NewConnectionStatus)
+      tags:
+      - tag: component
+        value: fritzbox
+      trends: '0'
+      triggers:
+      - uuid: e8b385e167fa4fb3a3b907f62bdedf59
+        expression: last(/Homelab FRITZ!Box/fritz.conn.status)<>"Connected"
+        name: '{HOST.NAME}: Internetverbindung getrennt'
+        priority: HIGH
+    - uuid: aa6013cd40074a29b1d943359cc37b31
+      name: Online seit
+      type: DEPENDENT
+      key: fritz.uptime
+      delay: '0'
+      history: 30d
+      value_type: FLOAT
+      master_item:
+        key: fritz.conn
+      preprocessing:
+      - type: XMLPATH
+        parameters:
+        - number(//NewUptime)
+      tags:
+      - tag: component
+        value: fritzbox
+      trends: 365d
+      units: uptime
+      description: Sekunden seit dem letzten Verbindungsaufbau
+      triggers:
+      - uuid: c5360ba8e0f74c9f82f1a84d58a48e28
+        expression: change(/Homelab FRITZ!Box/fritz.uptime)<0
+        name: '{HOST.NAME}: Internetverbindung wurde neu aufgebaut'
+        priority: AVERAGE
+        description: Zeigt DSL-Neuverbindungen (Abbrueche) an
+        manual_close: 'YES'
+    macros:
+    - macro: '{$FRITZ.SYNC.DOWN.MIN}'
+      value: '1000000'
+      description: Warnung, wenn der Sync-Download darunter faellt (bit/s)

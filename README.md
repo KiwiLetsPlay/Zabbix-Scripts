@@ -311,6 +311,21 @@ Der Name des Problems zeigt die Pakete direkt an, zum Beispiel: `pihole: 2 Updat
 
 ---
 
+## FRITZ!Box und DSL-Leitung (UPnP)
+
+Ungetestet an einer echten FRITZ!Box. Die Abfrage läuft über UPnP, also ohne Agent.
+
+1. **In der FRITZ!Box:** Heimnetz → Netzwerk → Netzwerkeinstellungen → Heimnetzfreigaben. Dort **Zugriff für Anwendungen zulassen** und **Statusinformationen über UPnP übertragen** aktivieren.
+2. **In Zabbix:** `Homelab-FRITZBox.yaml` importieren (Data collection → Templates → Import, Create new und Update existing).
+3. **Host anlegen:** Data collection → Hosts → Create host. Name `FRITZ!Box`, Gruppe `Network devices`, Interface **Agent** mit der IP der FRITZ!Box (Port egal), Templates `Homelab Ping` und `Homelab FRITZ!Box`.
+4. **Prüfen:** Nach etwa einer Minute stehen unter Latest data `DSL Sync Download (Maximum)`, `Leitungsstatus`, `Internetverbindung Status`, `Online seit` und die Live-Datenraten.
+
+Meldungen: Leitung nicht synchron und Internetverbindung getrennt (High, mit Telegram), Verbindung neu aufgebaut und Sync unter Mindestwert (Makro `{$FRITZ.SYNC.DOWN.MIN}` am Host anpassen).
+
+Internet-Erreichbarkeit: zwei Ping-Hosts `Internet Cloudflare` (1.1.1.1) und `Internet Google` (8.8.8.8) mit dem Template `Homelab Ping`.
+
+---
+
 ## Updates per Knopf in Zabbix installieren
 
 Du siehst pro Server, **welche** Updates anstehen (`Pending updates list`, ein `*` hinter dem Namen = Sicherheits-Update), und kannst sie mit einem Klick starten. Das läuft ohne Fernbefehle (`system.run` bleibt aus): Der Agent bekommt nur einen festen Befehl, und nur der Zabbix-Server darf ihn auslösen.
@@ -423,6 +438,7 @@ Danach noch von Hand:
 | Telegram-Test: "unresolved macros" | Beim Test in Zabbix die Felder (To, Subject, Message) mit echten Werten füllen, nicht mit `{ALERT.SENDTO}`. |
 | Telegram schickt auch normale Updates | Beim Benutzer Admin → Media → Telegram nur **High** und **Disaster** angehakt lassen. |
 | Telegram schickt gar nichts | Chat-ID richtig? Dem Bot einmal `/start` schicken. Alerts → Actions: Action "Report problems to Zabbix administrators" aktiv? Bot-Token im Media type gesetzt? |
+| Rotes `i` bei „Pending updates“, Meldung „Timeout occurred while gathering data“ | `apt-get -s upgrade` braucht länger als die 3 Sekunden Standard-Timeout. Die `Homelab-Linux-extras.yaml` setzt für die Update-Messwerte deshalb 30 Sekunden. Neue YAML importieren (Update existing), dann bei den Messwerten **Execute now**. |
 | Updates fehlen in Zabbix, obwohl `apt update` welche zeigt | Zabbix zählt mit den Paketlisten des Servers. Sind die veraltet, steht dort `0`. `install.sh` richtet deshalb alle 6 Stunden ein `apt-get update` ein (`/etc/cron.d/homelab-apt-update`). Einmal neu installieren oder von Hand `sudo apt update` ausführen, dann beim Messwert **Execute now**. |
 | Update-Meldung bleibt nach `apt upgrade` | Prüfintervall 1 Stunde, Item mit **Execute now** neu abfragen. Bleibt sie: `apt list --upgradable` ansehen (zurückgehaltene Pakete: `sudo apt full-upgrade`), oder `/var/run/reboot-required` existiert (Neustart nötig). |
 | Knopf `Updates installieren` meldet Fehler | Mit `--update-button` installiert? Prüfen: `ls /etc/sudoers.d/zabbix-homelab-update` und `sudo -l -U zabbix` (dort muss `homelab-update.sh start` stehen). Fehlt `zabbix_get` im Container, schick die Fehlermeldung. |
